@@ -5,6 +5,7 @@ import java.util.TreeMap;
 public class KuhnTrainer { 
   
 public static final int PASS = 0, BET = 1, NUM_ACTIONS = 2; 
+public int nodecount = 0;
 public static final Random random = new Random(); 
 public TreeMap<String, Node> nodeMap = new TreeMap<String, Node>();
 
@@ -17,14 +18,14 @@ double[] regretSum = new double[NUM_ACTIONS],
 private double[] getStrategy(double realizationWeight) { 
   double normalizingSum = 0; 
   for (int a = 0; a < NUM_ACTIONS; a++) { 
-    strategy[a] = regretSum[a] > 0 ? regretSum[a] : 0; 
+    strategy[a] = regretSum[a] > 0 ? regretSum[a] : 0; //regret matching
     normalizingSum += strategy[a]; 
   } 
   for (int a = 0; a < NUM_ACTIONS; a++) { 
     if (normalizingSum > 0) 
       strategy[a] /= normalizingSum; 
     else 
-      strategy[a] = 1.0 / NUM_ACTIONS; 
+      strategy[a] = 1.0 / NUM_ACTIONS; //uniform weighting if negative regretsum
     strategySum[a] += realizationWeight * strategy[a]; 
   } 
   return strategy; 
@@ -48,8 +49,11 @@ public String toString() {
 }
 }
 
-public void train(int iterations) { 
-  int[] cards = {1, 2, 3}; 
+public void train(int iterations, int decksize) { 
+  int[] cards = new int[decksize];
+  for (int i = 0; i < decksize; i++) {
+    cards[i]=i;
+  }
   double util = 0; 
   for (int i = 0; i < iterations; i++) { 
     for (int c1 = cards.length - 1; c1 > 0; c1--) { 
@@ -61,6 +65,7 @@ public void train(int iterations) {
     util += cfr(cards, "", 1, 1); 
   } 
   System.out.println("Average game value: " + util / iterations); 
+  System.out.println("Number of nodes touched: " + nodecount);
   for (Node n : nodeMap.values()) 
     System.out.println(n); 
 }
@@ -82,6 +87,7 @@ private double cfr(int[] cards, String history, double p0, double p1) {
       return isPlayerCardHigher ? 2 : -2; 
   }
     String infoSet = cards[player] + history; 
+    nodecount = nodecount + 1;
     Node node = nodeMap.get(infoSet); 
     if (node == null) { 
       node = new Node(); 
@@ -94,20 +100,21 @@ private double cfr(int[] cards, String history, double p0, double p1) {
     for (int a = 0; a < NUM_ACTIONS; a++) { 
       String nextHistory = history + (a == 0 ? "p" : "b"); 
       util[a] = player == 0 
-        ? - cfr(cards, nextHistory, p0 * strategy[a], p1) 
+        ? - cfr(cards, nextHistory, p0 * strategy[a], p1) //p0 
         : - cfr(cards, nextHistory, p0, p1 * strategy[a]); 
-      nodeUtil += strategy[a] * util[a]; 
+      nodeUtil += strategy[a] * util[a]; //weighted utility for the node
     }
     for (int a = 0; a < NUM_ACTIONS; a++) { 
       double regret = util[a] - nodeUtil; 
-      node.regretSum[a] += (player == 0 ? p1 : p0) * regret; 
+      node.regretSum[a] += (player == 0 ? p1 : p0) * regret; //store regretsum for each node->action
     }
     return nodeUtil;
 }
 
 public static void main(String[] args) { 
-  int iterations = 10000; 
-  new KuhnTrainer().train(iterations); 
+  int iterations = 1000; 
+  int decksize = 500;
+  new KuhnTrainer().train(iterations, decksize); 
 }
 
 }
